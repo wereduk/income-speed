@@ -193,6 +193,12 @@ main {
   max-height: 340px;
 }
 
+.field-warning {
+  font-size: 0.8rem;
+  color: #f5a623;
+  margin-top: 4px;
+}
+
 footer {
   text-align: center;
   padding: 20px;

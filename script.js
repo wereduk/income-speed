@@ -42,6 +42,10 @@ function getSelectedPrice() {
 function calculate() {
   const wage = parseFloat(document.getElementById('wage').value);
   const consumption = parseFloat(document.getElementById('consumption').value);
+  const consumptionWarning = document.getElementById('consumptionWarning');
+  if (consumptionWarning) {
+    consumptionWarning.style.display = (!isNaN(consumption) && consumption > 30) ? 'block' : 'none';
+  }
   const pricePerLiter = getSelectedPrice();
 
   const speedEl = document.getElementById('speedValue');
