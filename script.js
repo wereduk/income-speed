@@ -1,4 +1,4 @@
-// Monthly average retail fuel prices in Poland (zł/l), source: ANPiPC / e-petrol.pl
+// Monthly average retail fuel prices in Poland (zł/l), source: Eurostat EU Weekly Oil Bulletin
 const fuelPrices = {
   "LPG": {
     "2020-01":1.95,"2020-02":1.94,"2020-03":1.80,"2020-04":1.68,"2020-05":1.63,"2020-06":1.69,
@@ -68,6 +68,74 @@ const MONTH_NAMES = [
 ];
 const MONTH_SHORT = ['sty','lut','mar','kwi','maj','cze','lip','sie','wrz','paź','lis','gru'];
 
+// --- ECB exchange rates ---
+// ecbRates[currency]['YYYY-MM'] = units of currency per 1 EUR
+// e.g. ecbRates['PLN']['2023-06'] = 4.47  (4.47 PLN = 1 EUR)
+let ecbRates = null; // null = not yet fetched; {} = fetch failed
+
+async function fetchECBRates() {
+  const statusEl = document.getElementById('ratesStatus');
+  if (statusEl) statusEl.textContent = 'Pobieranie kursów walut…';
+  try {
+    const ccys = 'PLN+USD+GBP+CHF+CZK+SEK+NOK';
+    const url =
+      `https://data-api.ecb.europa.eu/service/data/EXR/M.${ccys}.EUR.SP00.A` +
+      `?format=jsondata&startPeriod=2020-01`;
+    const resp = await fetch(url);
+    if (!resp.ok) throw new Error('HTTP ' + resp.status);
+    const json = await resp.json();
+    ecbRates = parseECBRates(json);
+    if (statusEl) statusEl.textContent = '';
+  } catch (e) {
+    console.warn('ECB rates unavailable:', e);
+    ecbRates = {};
+    if (statusEl) statusEl.textContent = '⚠️ Kursy walut niedostępne';
+  }
+  calculate();
+}
+
+function parseECBRates(json) {
+  const result = {};
+  const seriesDims = json.structure.dimensions.series;
+  const ccyDim = seriesDims.find(d => d.id === 'CURRENCY');
+  const ccyIdx = seriesDims.indexOf(ccyDim);
+  const periods = json.structure.dimensions.observation[0].values.map(v => v.id);
+  for (const [key, series] of Object.entries(json.dataSets[0].series)) {
+    const parts = key.split(':').map(Number);
+    const ccy = ccyDim.values[parts[ccyIdx]].id;
+    result[ccy] = {};
+    for (const [oi, ov] of Object.entries(series.observations)) {
+      if (ov[0] !== null && ov[0] !== undefined) result[ccy][periods[parseInt(oi)]] = ov[0];
+    }
+  }
+  return result;
+}
+
+/**
+ * Returns how many PLN equals 1 unit of `currency` for the given month.
+ * Uses the nearest prior available rate if exact month is missing.
+ * Returns null when rates are still loading or unavailable for the currency.
+ */
+function getPlnPerUnit(currency, yearMonth) {
+  if (currency === 'PLN') return 1;
+  if (ecbRates === null) return null; // still loading
+
+  const nearest = (series, ym) => {
+    if (!series) return null;
+    if (series[ym] != null) return series[ym];
+    const prior = Object.keys(series).filter(m => m <= ym).sort();
+    return prior.length ? series[prior[prior.length - 1]] : null;
+  };
+
+  const plnPerEur = nearest(ecbRates['PLN'], yearMonth);
+  if (plnPerEur == null) return null;
+  if (currency === 'EUR') return plnPerEur;
+
+  const ccyPerEur = nearest(ecbRates[currency], yearMonth);
+  if (ccyPerEur == null) return null;
+  return plnPerEur / ccyPerEur; // PLN per 1 unit of foreign currency
+}
+
 let chart = null;
 let chartKeys = [];
 
@@ -132,6 +200,7 @@ function getSelectedPrice() {
 
 function calculate() {
   const wage = parseFloat(document.getElementById('wage').value);
+  const currency = document.getElementById('currency').value;
   const consumption = parseFloat(document.getElementById('consumption').value);
   const consumptionWarning = document.getElementById('consumptionWarning');
   if (consumptionWarning) {
@@ -139,15 +208,35 @@ function calculate() {
   }
   const pricePerLiter = getSelectedPrice();
 
+  const fuelType = document.getElementById('fuelType').value;
+  const year = document.getElementById('year').value;
+  const month = document.getElementById('month').value;
+  const yearMonth = `${year}-${month}`;
+
   const speedEl = document.getElementById('speedValue');
   const speedUnit = document.getElementById('speedUnit');
   const noResult = document.getElementById('noResult');
   const resultDetails = document.getElementById('resultDetails');
   const priceEl = document.getElementById('detailPrice');
   const costEl = document.getElementById('detailCost');
+  const rateBox = document.getElementById('detailRateBox');
+  const rateEl = document.getElementById('detailRate');
 
-  if (isNaN(wage) || wage <= 0 || isNaN(consumption) || consumption <= 0 || !pricePerLiter || pricePerLiter <= 0) {
-    speedEl.textContent = '—';
+  // Resolve exchange rate (PLN per 1 unit of chosen currency)
+  const plnPerUnit = getPlnPerUnit(currency, yearMonth);
+
+  // Wage expressed in PLN
+  const wagePLN = (currency === 'PLN') ? wage : (plnPerUnit != null ? wage * plnPerUnit : NaN);
+
+  // Show loading hint when rates are still being fetched
+  const ratesStatus = document.getElementById('ratesStatus');
+  if (currency !== 'PLN' && ecbRates === null && ratesStatus && !ratesStatus.textContent) {
+    ratesStatus.textContent = 'Pobieranie kursów walut…';
+  }
+
+  if (isNaN(wagePLN) || wagePLN <= 0 || isNaN(consumption) || consumption <= 0 ||
+      !pricePerLiter || pricePerLiter <= 0) {
+    speedEl.textContent = (currency !== 'PLN' && ecbRates === null) ? '…' : '—';
     speedUnit.style.display = 'none';
     noResult.style.display = 'block';
     resultDetails.style.display = 'none';
@@ -155,7 +244,7 @@ function calculate() {
   }
 
   const costPerKm = (consumption / 100) * pricePerLiter;
-  const speed = wage / costPerKm;
+  const speed = wagePLN / costPerKm;
 
   speedEl.textContent = speed.toFixed(1);
   speedUnit.style.display = 'block';
@@ -164,6 +253,15 @@ function calculate() {
   priceEl.textContent = pricePerLiter.toFixed(2) + ' zł/l';
   costEl.textContent = costPerKm.toFixed(4) + ' zł/km';
 
+  if (rateBox && rateEl) {
+    if (currency !== 'PLN' && plnPerUnit != null) {
+      rateEl.textContent = `1 ${currency} = ${plnPerUnit.toFixed(4)} PLN`;
+      rateBox.style.display = '';
+    } else {
+      rateBox.style.display = 'none';
+    }
+  }
+
   updateChart();
 }
 
@@ -171,6 +269,7 @@ function updateChart() {
   const wage = parseFloat(document.getElementById('wage').value);
   const consumption = parseFloat(document.getElementById('consumption').value);
   const fuelType = document.getElementById('fuelType').value;
+  const currency = document.getElementById('currency').value;
 
   if (isNaN(wage) || wage <= 0 || isNaN(consumption) || consumption <= 0) {
     if (chart) {
@@ -187,16 +286,21 @@ function updateChart() {
   });
   const speeds = chartKeys.map(k => {
     const price = fuelPrices[fuelType][k];
+    const plnPerUnit = getPlnPerUnit(currency, k);
+    if (plnPerUnit == null) return null;
+    const wagePLN = wage * plnPerUnit;
     const costPerKm = (consumption / 100) * price;
-    return parseFloat((wage / costPerKm).toFixed(2));
+    return parseFloat((wagePLN / costPerKm).toFixed(2));
   });
+
+  const currencyLabel = currency === 'PLN' ? '' : ` [stawka w ${currency}]`;
 
   if (typeof Chart === 'undefined') return;
 
   if (chart) {
     chart.data.labels = labels;
     chart.data.datasets[0].data = speeds;
-    chart.data.datasets[0].label = `Prędkość (${fuelType}) [km/h]`;
+    chart.data.datasets[0].label = `Prędkość (${fuelType})${currencyLabel} [km/h]`;
     chart.update();
   } else {
     const ctx = document.getElementById('myChart').getContext('2d');
@@ -205,7 +309,7 @@ function updateChart() {
       data: {
         labels,
         datasets: [{
-          label: `Prędkość (${fuelType}) [km/h]`,
+          label: `Prędkość (${fuelType})${currencyLabel} [km/h]`,
           data: speeds,
           borderColor: '#e94560',
           backgroundColor: 'rgba(233,69,96,0.12)',
@@ -231,7 +335,15 @@ function updateChart() {
                 const [y, m] = key.split('-');
                 return `${MONTH_NAMES[parseInt(m, 10) - 1]} ${y}`;
               },
-              label: ctx => `${ctx.parsed.y.toFixed(1)} km/h`
+              label: ctx => {
+                const key = chartKeys[ctx.dataIndex];
+                const lines = [`${ctx.parsed.y.toFixed(1)} km/h`];
+                if (currency !== 'PLN') {
+                  const rate = getPlnPerUnit(currency, key);
+                  if (rate != null) lines.push(`1 ${currency} = ${rate.toFixed(4)} PLN`);
+                }
+                return lines;
+              }
             }
           }
         },
@@ -276,6 +388,14 @@ document.getElementById('month').addEventListener('change', calculate);
 document.getElementById('wage').addEventListener('input', calculate);
 document.getElementById('consumption').addEventListener('input', calculate);
 document.getElementById('manualPrice').addEventListener('input', calculate);
+document.getElementById('currency').addEventListener('change', function () {
+  if (this.value !== 'PLN' && ecbRates === null) {
+    fetchECBRates();
+  } else {
+    calculate();
+  }
+});
 
 populateSelects(document.getElementById('fuelType').value);
 calculate();
+fetchECBRates();

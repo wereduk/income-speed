@@ -20,7 +20,7 @@ Prędkość     = stawka_zarobkowa / koszt_na_km
 
 ## ✨ Funkcje
 
-- **4 rodzaje paliw** z historycznymi cenami 2020–2025: LPG, Pb95, Pb98, ON
+- **4 rodzaje paliw** z historycznymi cenami 2020–2026: LPG, Pb95, Pb98, ON
 - **Live calculation** — wynik aktualizuje się automatycznie przy każdej zmianie
 - **Wykres liniowy** (Chart.js) — wizualizacja prędkości dochodowej w kolejnych latach
 - **Cena ręczna** — opcjonalne pole nadpisujące cenę historyczną
