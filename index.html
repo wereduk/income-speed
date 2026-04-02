@@ -1,0 +1,105 @@
+<!DOCTYPE html>
+<html lang="pl">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Prędkość Dochodowa — Kalkulator</title>
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <header>
+    <h1>⛽ Kalkulator Prędkości Dochodowej</h1>
+    <p>Oblicz prędkość, przy której koszt paliwa na godzinę równa się Twojej stawce zarobkowej</p>
+  </header>
+
+  <main>
+    <!-- Formularz -->
+    <section class="card">
+      <h2>📋 Dane wejściowe</h2>
+      <div class="form-grid">
+        <div class="form-group">
+          <label for="wage">Stawka zarobkowa (/h)</label>
+          <input type="number" id="wage" min="0" step="0.01" placeholder="np. 30" />
+        </div>
+        <div class="form-group">
+          <label for="currency">Waluta stawki</label>
+          <select id="currency">
+            <option value="PLN">PLN – złoty</option>
+            <option value="EUR">EUR – euro</option>
+            <option value="USD">USD – dolar</option>
+            <option value="GBP">GBP – funt</option>
+            <option value="CHF">CHF – frank szw.</option>
+            <option value="CZK">CZK – korona cz.</option>
+            <option value="SEK">SEK – korona szw.</option>
+            <option value="NOK">NOK – korona nor.</option>
+          </select>
+          <span class="field-hint" id="ratesStatus"></span>
+        </div>
+        <div class="form-group">
+          <label for="consumption">Średnie spalanie (l/100km)</label>
+          <input type="number" id="consumption" min="0" max="99" step="0.1" placeholder="np. 7" />
+          <span class="field-warning" id="consumptionWarning" style="display:none;">⚠️ Wysoka wartość — czy na pewno chodzi o l/100km?</span>
+        </div>
+        <div class="form-group">
+          <label for="fuelType">Rodzaj paliwa</label>
+          <select id="fuelType">
+            <option value="Pb95">Pb95</option>
+            <option value="Pb98">Pb98</option>
+            <option value="ON">ON (diesel)</option>
+            <option value="LPG">LPG</option>
+          </select>
+        </div>
+        <div class="form-group">
+          <label for="year">Rok historyczny</label>
+          <select id="year"></select>
+        </div>
+        <div class="form-group">
+          <label for="month">Miesiąc</label>
+          <select id="month"></select>
+        </div>
+        <div class="form-group">
+          <label for="manualPrice">Cena ręczna (zł/l) — opcjonalnie</label>
+          <input type="number" id="manualPrice" min="0" step="0.01" placeholder="np. 6.50 — nadpisuje historyczną" />
+        </div>
+      </div>
+    </section>
+
+    <!-- Wynik -->
+    <section class="card result-card">
+      <h2>🏁 Wynik</h2>
+      <div class="result-main">
+        <div class="speed-value" id="speedValue">—</div>
+        <div class="speed-unit" id="speedUnit" style="display:none;">km/h</div>
+        <p class="no-result" id="noResult">Uzupełnij dane, aby zobaczyć wynik</p>
+      </div>
+      <div class="result-details" id="resultDetails" style="display:none;">
+        <div class="detail-box">
+          <div class="label">Cena paliwa</div>
+          <div class="value" id="detailPrice">—</div>
+        </div>
+        <div class="detail-box">
+          <div class="label">Koszt paliwa na km</div>
+          <div class="value" id="detailCost">—</div>
+        </div>
+        <div class="detail-box" id="detailRateBox" style="display:none;">
+          <div class="label">Kurs walutowy</div>
+          <div class="value" id="detailRate">—</div>
+        </div>
+      </div>
+    </section>
+
+    <!-- Wykres -->
+    <section class="card chart-card">
+      <h2>📈 Prędkość dochodowa (miesięczne ceny historyczne)</h2>
+      <canvas id="myChart"></canvas>
+    </section>
+  </main>
+
+  <footer>
+    <p>Wzór: Prędkość = Stawka / (Spalanie/100 × Cena_paliwa) &nbsp;|&nbsp; Miesięczne średnie ceny paliw w Polsce 2020–2026 (źródło: <a href="https://energy.ec.europa.eu/data-and-analysis/weekly-oil-bulletin_en" target="_blank" rel="noopener" style="color:inherit">Eurostat EU Weekly Oil Bulletin</a>) &nbsp;|&nbsp; Kursy walut: <a href="https://www.ecb.europa.eu/stats/exchange/eurofxref/html/index.en.html" target="_blank" rel="noopener" style="color:inherit">EBC</a></p>
+  </footer>
+
+  <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.3/dist/chart.umd.min.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>
